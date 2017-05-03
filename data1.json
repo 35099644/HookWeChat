@@ -1,0 +1,46 @@
+{
+    "continueFlag": 1,
+    "data": [
+        {
+            "count": 20,
+            "items": [
+                {
+                    "date": 1493064660,
+                    "desc": "没错，这里说的就是<emclass=\\\"highlight\\\">中国</em>航天人。今天就跟大家聊聊<emclass=\\\"highlight\\\">中国</em>航天人的三段故事。文|斩马刀本文摘编自...",
+                    "docID": "7504014832625270857",
+                    "doc_url": "http: //news.sina.cn/gn/2017-04-25/detail-ifyepsec0829710.d.html",
+                    "news_type": 1,
+                    "source": "新浪新闻",
+                    "thumbUrl": "http: //mmbiz.qpic.cn/wx_search/rMAibibg5icuWGKTEz9sCiaM6hVz861XpmGBJkpEx2IIRdp6bzDaicCPLsQ/320",
+                    "title": "<emclass=\\\"highlight\\\">中国</em>航天曾遭苏美欧技术封杀"
+                },
+                {
+                    "date": 1492948943,
+                    "desc": "五年后，<emclass=\\\"highlight\\\">中国</em>是能够实现无现金社会的因为“天时、地利、人和”已皆俱2017年两会，大家对无现金社会...",
+                    "docID": "13063377365623675049",
+                    "doc_url": "http: //mp.weixin.qq.com/s?__biz=NzgzNTc1NTIx&mid=2653438520&idx=1&sn=d420ba47f78e26713598ae03fceb4588&chksm=1d577cb62a20f5a0550199aa0cee34a8c12b065162d531190ebeb8fa3fc5da8e27e911c35363&scene=7#rd",
+                    "news_type": 0,
+                    "source": "商业周刊中文版",
+                    "thumbUrl": "http: //mmbiz.qpic.cn/mmbiz_jpg/4S6dxDGtXE7Aju2vKnVJGibf8pZFXj3hz19J8Vt2HsK4kNwCXO1YfznfNAibKDEpELN1T4XdysO1nGPmoRvShhzQ/640",
+                    "title": "<emclass=\\\"highlight\\\">中国</em>离无现金社会还有多远？|专栏"
+                }
+            ],
+            "resultType": 0,
+            "title": "相关文章",
+            "totalCount": 961,
+            "type": 2
+        }
+    ],
+    "direction": 2,
+    "exposeMs": 500,
+    "isDivide": 0,
+    "isExpose": 1,
+    "isHomePage": 0,
+    "lang": "zh_CN",
+    "monitorMs": 100,
+    "offset": 20,
+    "query": "中国",
+    "resultType": 0,
+    "ret": 0,
+    "searchID": "1147533754334379120"
+}

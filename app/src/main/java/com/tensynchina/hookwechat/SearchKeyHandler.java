@@ -1,9 +1,11 @@
 package com.tensynchina.hookwechat;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -16,15 +18,10 @@ import android.widget.TextView;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.example.llx.testservice.IMyAidlInterface;
 import com.tensynchina.hookwechat.data.Items;
 import com.tensynchina.hookwechat.data.Result;
-import com.tensynchina.push.client.Kind;
-import com.tensynchina.push.client.ResponseDelegate;
-import com.tensynchina.push.client.impl.AbstractPResponse;
-import com.tensynchina.push.client.impl.PClient;
-import com.tensynchina.push.client.impl.PRequest;
-import com.tensynchina.push.sdk.android.PSReceiver;
+import com.tensynchina.push.IPushServiceAidlInterface;
+
 
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
@@ -44,73 +41,34 @@ import de.robv.android.xposed.XposedBridge;
 
 public class SearchKeyHandler extends XC_MethodHook implements Runnable{
 
-    private static String URL = "211.103.134.93";
-    private static int PORT = 29999;
-
     private Activity activity;
     private final Result mResult = new Result();
     private final Object mLock = new Object();
     private boolean mContinueTag = false;
     private Object mWebView;
 
-    private PSReceiver mPSReceiver;
-
-    private LinkedBlockingQueue<String> mKeyQueue = new LinkedBlockingQueue<>();
+    private LinkedBlockingQueue<Message> mKeyQueue = new LinkedBlockingQueue<>();
 
     private Thread mThread;
 
     private Random mRandom = new Random(300);
 
-    private ResponseDelegate delegate = new ResponseDelegate() {
+    private BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
-        public void auhtorizeErr() {
-        }
-
-        @Override
-        public void serverready(PClient<? extends PRequest, ? extends AbstractPResponse> pclient) {
-
-        }
-
-        @Override
-        public void receiveString(PClient<? extends PRequest, ? extends AbstractPResponse> pclient, String[] params, String message) {
-            String msg = message;
-            String posstr = params[params.length-1];
-            if(posstr!=null){
-                int pos = pclient.parseInt(posstr,-1);
-                if(pos>=0){
-                    if(pos>=message.length()){
-                        msg = "";
-                    }else {
-                        msg = message.substring(pos);
-                    }
-                }
+        public void onReceive(Context context, Intent intent) {
+            if (intent.getAction().equals("com.tensynchina.push.MESSAGE_ACTION")) {
+                String uuid = intent.getStringExtra("uuid");
+                String key = intent.getStringExtra("key");
+                String end_time = intent.getStringExtra("end_time");
+                Message msg = new Message();
+                msg.uuid = uuid;
+                msg.key = key;
+                msg.end_time = end_time;
+                // 这里面队列满就会抛出异常
+                mKeyQueue.add(msg);
             }
-            String from = params[0];
-            // 加入队列
-            XposedBridge.log("收到msg: " + msg);
-            mKeyQueue.add(from + ":" + msg);
-        }
-
-        @Override
-        public void receiveByte(PClient<? extends PRequest, ? extends AbstractPResponse> pclient, String[] val, byte[] message) {
-
-        }
-
-        @Override
-        public void receiveother(PClient<? extends PRequest, ? extends AbstractPResponse> pclient, int tag, Kind kind, Object message) {
-
         }
     };
-
-    public SearchKeyHandler() {
-        XposedBridge.log("SearchKeyHandler初始化");
-        // 启动测试服务
-        /*XposedBridge.log("启动测试服务");
-        Intent intent = new Intent(AppContext.getAppContext(),PSService.class);
-        AppContext.getAppContext().startService(intent);
-        XposedBridge.log("关闭测试服务");*/
-
-    }
 
     private Result newQuery(final String key) throws UnsupportedEncodingException {
 
@@ -184,11 +142,11 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
         return mResult;
     }
 
-    private void handleResult(String data,long endTime,String from,String key) {
+    private void handleResult(String data,long endTime,String uuid,String key) {
 
         if (TextUtils.isEmpty(data)) {
             XposedBridge.log("data is null");
-            mPSReceiver.sendmsg(1,21503,from,key + ":[]");
+            sendMsg(uuid,key,String.valueOf(endTime),data);
             return;
         }
         //目前只查3页
@@ -197,7 +155,7 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
         JSONArray dataArray  = JSONObject.parseObject(JSONObject.parseObject(JSONObject.parseObject(data).
                 getString("__params")).getString("json")).getJSONArray("data");
         if (dataArray == null) {
-            mPSReceiver.sendmsg(1,21503,from,key + ":" + data);
+            sendMsg(uuid,key,String.valueOf(endTime),data);
             return;
         }
         items =  dataArray.getJSONObject(0).getJSONArray("items");
@@ -233,9 +191,8 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
         }
 
         Collections.sort(itemsList);
-        String jsonStr = key + ":" + JSONObject.toJSONString(itemsList);
-        XposedBridge.log(jsonStr);
-        mPSReceiver.sendmsg(1,21503,from,jsonStr);
+        XposedBridge.log(JSONObject.toJSONString(itemsList));
+        sendMsg(uuid,key,String.valueOf(endTime),JSONObject.toJSONString(itemsList));
     }
 
     private String nextPage() {
@@ -286,38 +243,17 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
                 activity = (Activity) param.thisObject;
                 XposedBridge.log("activity package name = " + activity.getPackageName());
                 // 注册接收广播
-                //registerPSClient();
+                XposedBridge.log("开启广播");
+                registerReceiver(activity);
                 // 开启消费者线程
                 XposedBridge.log("开启消费者线程");
                 mThread = new Thread(this);
                 mThread.start();
 
-               /* // 尝试绑定远程服务
-                Intent intent = new Intent();
-                intent.setAction("com.test.aidl");
-                intent.setPackage("com.example.llx.testservice");
-                activity.bindService(intent, new ServiceConnection() {
-                    @Override
-                    public void onServiceConnected(ComponentName name, IBinder service) {
-                        XposedBridge.log("绑定服务成功");
-                        IMyAidlInterface myAidl = IMyAidlInterface.Stub.asInterface(service);
-                        try {
-                            int x = myAidl.getX();
-                            XposedBridge.log("远程服务值 : x " + x);
-                        } catch (RemoteException e) {
-                            XposedBridge.log(e);
-                        }
-                    }
-
-                    @Override
-                    public void onServiceDisconnected(ComponentName name) {
-                        XposedBridge.log("绑定服务失败");
-                    }
-                }, Context.BIND_AUTO_CREATE);*/
-
-
             } else if ("onPause".equals(param.method.getName())) {
-                unRegisterPSClient();
+                // 关闭广播
+                XposedBridge.log("关闭广播");
+                unRegisterReceiver(activity);
                 // 关闭消费者线程
                 if (mThread!= null) {
                     XposedBridge.log("关闭消费者线程");
@@ -329,7 +265,6 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
             if ("a".equals(param.method.getName())) {
                 if ("onSearchDataReady".equals(param.args[0])) {
                     String data = (String) param.getResult();
-                   // XposedBridge.log(data);
                     synchronized (mResult) {
                         mResult.setData(data);
                         mResult.setHasData(true);
@@ -348,27 +283,13 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
         }
     }
 
-    private void unRegisterPSClient() {
-        if (mPSReceiver != null) {
-            mPSReceiver.shutdown();
-            mPSReceiver = null;
-            XposedBridge.log("mPSReceiver shutdown");
-        }
+    private void registerReceiver(Context context) {
+        IntentFilter intentFilter = new IntentFilter("com.tensynchina.push.MESSAGE_ACTION");
+        context.registerReceiver(mReceiver,intentFilter);
     }
 
-    private void registerPSClient() {
-        if (mPSReceiver == null) {
-            try {
-                mPSReceiver = PSReceiver.getInstance("tk00005", "3002", URL, PORT);
-                mPSReceiver.getRequest().add("sids", "1,2");
-                mPSReceiver.getRequest().add("vids", "21503");
-                mPSReceiver.setDelegate(delegate);
-                mPSReceiver.tostart();
-                XposedBridge.log("注册成功");
-            } catch (Exception e) {
-                XposedBridge.log(e);
-            }
-        }
+    private void unRegisterReceiver(Context context) {
+        context.unregisterReceiver(mReceiver);
     }
 
     @Override
@@ -376,30 +297,68 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
         while (true) {
             try {
 
-                String data = mKeyQueue.take();
-                String[] uidAndBody = data.split(":");
-                String uid = uidAndBody[0];
-                String body = uidAndBody[1];
+                Message msg = mKeyQueue.take();
+
+                String uuid = msg.uuid;
+                String key = msg.key;
+                String endTime = msg.end_time;
+
                 // 开始搜索
                 try {
-                    XposedBridge.log("msg : " + body);
-                    String[] split = body.split("&&");
-                    String key = split[0];
-                    String endTime = split[1];
+                    XposedBridge.log(msg.toString());
 
                     Result result = newQuery(key);
                     // 对结果进行处理，以确定是否需要进一步的查询
-                    handleResult(result.getData(),Long.parseLong(endTime),uid,key);
+                    handleResult(result.getData(),Long.parseLong(endTime),uuid,key);
                 } catch (Exception e) {
                     XposedBridge.log(e);
-                    mPSReceiver.sendmsg(1,21503,uid,"key:{\"error\":\"error\"}");
+                    //mPSReceiver.sendmsg(1,21503,uid,"key:{\"error\":\"error\"}");
+                    sendMsg(uuid,key,endTime,"{\"error\":\"error\"}");
                 }
-
                 Thread.sleep((mRandom.nextInt(20*1000) + 10*1000));
             } catch (InterruptedException e) {
                 XposedBridge.log(e);
                 break;
             }
+        }
+    }
+
+    private void sendMsg(final String uuid,final String key,final String endTime ,final String data) {
+        // 绑定远程服务发送数据
+        Intent intent = new Intent();
+        intent.setAction("com.tensynchina.push.msg");
+        intent.setPackage("com.tensynchina.push");
+        activity.bindService(intent, new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                IPushServiceAidlInterface pushService = IPushServiceAidlInterface.Stub.asInterface(service);
+                try {
+                    pushService.sendMessage(uuid,key,endTime,data);
+                } catch (RemoteException e) {
+                    XposedBridge.log("远程服务发送数据失败");
+                }
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                XposedBridge.log("远程服务连接失败");
+            }
+        },Context.BIND_AUTO_CREATE);
+
+    }
+
+    private class Message {
+        private String uuid;
+        private String key;
+        private String end_time;
+
+        @Override
+        public String toString() {
+            return "Message{" +
+                    "uuid='" + uuid + '\'' +
+                    ", key='" + key + '\'' +
+                    ", end_time='" + end_time + '\'' +
+                    '}';
         }
     }
 }

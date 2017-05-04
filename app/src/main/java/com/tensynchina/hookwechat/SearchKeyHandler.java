@@ -86,8 +86,8 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
                     Field mEditorField = etClass.getDeclaredField("mEditor");
                     mEditorField.setAccessible(true);
                     Object mEditor = mEditorField.get(et);
-                    Class<?> editorClass = mEditor.getClass().getSuperclass();
-                    //Class<?> editorClass = mEditor.getClass();
+                    //Class<?> editorClass = mEditor.getClass().getSuperclass();
+                    Class<?> editorClass = mEditor.getClass();
                     Field inputContentTypeField = editorClass.getDeclaredField("mInputContentType");
                     inputContentTypeField.setAccessible(true);
                     Object inputContentType = inputContentTypeField.get(mEditor);
@@ -208,13 +208,25 @@ public class SearchKeyHandler extends XC_MethodHook implements Runnable{
         }
 
         try {
-            Class<?> mWebViewClass = mWebView.getClass().getSuperclass();
+            final Class<?> mWebViewClass = mWebView.getClass().getSuperclass();
             mResult.setData("");
             mResult.setHasData(false);
 
-            Method pageDown = mWebViewClass.getMethod("pageDown", boolean.class);
-            Object pageDownRet = pageDown.invoke(mWebView, true);
-            XposedBridge.log("pageDownRet = " + pageDownRet);
+
+            ((View)mWebView).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    Method pageDown = null;
+                    try {
+                        pageDown = mWebViewClass.getMethod("pageDown", boolean.class);
+                        Object pageDownRet = pageDown.invoke(mWebView, true);
+                        XposedBridge.log("pageDownRet = " + pageDownRet);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            },50);
 
             synchronized (mResult) {
                 while (!mResult.isHasData()) {
